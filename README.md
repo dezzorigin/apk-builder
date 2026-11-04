@@ -1,18 +1,54 @@
-# Apk Builder
+# APK Builder
 
-Vercel-style APK Builder using GitHub Actions and Cordova
+Vercel-style APK Builder menggunakan GitHub Actions dan Cordova. Membangun APK Android secara otomatis dari repository GitHub.
 
-## Tech stack
+## 🌐 Live Demo
+
+**https://apk-builder.pages.dev**
+
+## 📋 Tech Stack
 
 Next.js
 
-## Getting started
+## 📁 Struktur Proyek
 
-See project files for setup instructions.
+```
+app/
+hooks/
+lib/
+public/
+LICENSE
+PRD.md
+README.md
+eslint.config.mjs
+metadata.json
+next-env.d.ts
+next.config.ts
+package.json
+postcss.config.mjs
+test.js
+tsconfig.json
+```
 
-## License
+## 🚀 Getting Started
 
-MIT — see [LICENSE](./LICENSE).
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+```
+
+> Untuk project HTML statis, cukup buka `index.html` di browser atau serve folder dengan static server.
+
+## 📊 Status Proyek
+
+Dalam pengembangan aktif.
+
+## 📄 Lisensi
+
+MIT — lihat [LICENSE](./LICENSE).
 
 ---
-_Maintained by dezzorigin._
+_Dikembangkan oleh **dezzorigin** (Nabil Aulia Dika)._
