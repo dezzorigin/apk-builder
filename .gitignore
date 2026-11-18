@@ -1,15 +1,25 @@
+# Secrets — jangan pernah commit file ini.
 .env
 .env.*
 !.env.example
+
+# Dependencies & build output
 node_modules/
-.venv/
-venv/
-__pycache__/
-*.pyc
 .next/
 dist/
 build/
 out/
+coverage/
+
+# Python (dipakai script CI advisory-sweep)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# OS & editor
 .DS_Store
 *.log
-
