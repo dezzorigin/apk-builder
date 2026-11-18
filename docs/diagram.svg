@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="Inter, system-ui, sans-serif">
+ <defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+   <path d="M0 0L10 5L0 10z" fill="#1a1a1a"/>
+  </marker>
+ </defs>
+ <rect width="960" height="620" fill="#fdfbf7"/>
+ <text x="48" y="52" font-size="26" font-weight="800" fill="#111">APK Builder — alur build</text>
+ <text x="48" y="78" font-size="14" fill="#666">static export + Pages Worker → GitHub API → GitHub Actions (Cordova) → artifact APK</text>
+
+ <!-- Browser -->
+ <g>
+  <rect x="48" y="120" width="220" height="130" rx="16" fill="#ffffff" stroke="#e5e1d8" stroke-width="1.5"/>
+  <text x="68" y="152" font-size="13" font-weight="700" fill="#ff895d">1 · BROWSER</text>
+  <text x="68" y="180" font-size="16" font-weight="700" fill="#111">Landing → Wizard</text>
+  <text x="68" y="204" font-size="12.5" fill="#555">nama app · package · URL</text>
+  <text x="68" y="224" font-size="12.5" fill="#555">username · token · repo</text>
+  <text x="68" y="242" font-size="12.5" fill="#555">riwayat di IndexedDB</text>
+ </g>
+
+ <!-- Pages -->
+ <g>
+  <rect x="370" y="120" width="220" height="130" rx="16" fill="#ffffff" stroke="#e5e1d8" stroke-width="1.5"/>
+  <text x="390" y="152" font-size="13" font-weight="700" fill="#ff895d">2 · CLOUDFLARE PAGES</text>
+  <text x="390" y="180" font-size="16" font-weight="700" fill="#111">out/ + _worker.js</text>
+  <text x="390" y="204" font-size="12.5" fill="#555">POST /api/build (SSE)</text>
+  <text x="390" y="224" font-size="12.5" fill="#555">GET /api/artifact</text>
+  <text x="390" y="242" font-size="12.5" fill="#555">GET /api/download</text>
+ </g>
+
+ <!-- GitHub API -->
+ <g>
+  <rect x="692" y="120" width="220" height="130" rx="16" fill="#111111"/>
+  <text x="712" y="152" font-size="13" font-weight="700" fill="#ff895d">3 · GITHUB API</text>
+  <text x="712" y="180" font-size="16" font-weight="700" fill="#fff">Repo + file + dispatch</text>
+  <text x="712" y="204" font-size="12.5" fill="#ccc">buat repo privat (bila baru)</text>
+  <text x="712" y="224" font-size="12.5" fill="#ccc">push config.xml · workflow</text>
+  <text x="712" y="242" font-size="12.5" fill="#ccc">workflow_dispatch</text>
+ </g>
+
+ <line x1="268" y1="185" x2="366" y2="185" stroke="#1a1a1a" stroke-width="2" marker-end="url(#arr)"/>
+ <line x1="590" y1="185" x2="688" y2="185" stroke="#1a1a1a" stroke-width="2" marker-end="url(#arr)"/>
+
+ <!-- Actions runner -->
+ <g>
+  <rect x="692" y="310" width="220" height="130" rx="16" fill="#ffffff" stroke="#e5e1d8" stroke-width="1.5"/>
+  <text x="712" y="342" font-size="13" font-weight="700" fill="#ff895d">4 · GITHUB ACTIONS</text>
+  <text x="712" y="370" font-size="16" font-weight="700" fill="#111">Runner ubuntu-latest</text>
+  <text x="712" y="394" font-size="12.5" fill="#555">cordova platform add android</text>
+  <text x="712" y="414" font-size="12.5" fill="#555">cordova build android --debug</text>
+  <text x="712" y="432" font-size="12.5" fill="#555">upload-artifact: apk</text>
+ </g>
+ <line x1="802" y1="250" x2="802" y2="306" stroke="#1a1a1a" stroke-width="2" marker-end="url(#arr)"/>
+
+ <!-- Artifact back to browser -->
+ <g>
+  <rect x="370" y="310" width="220" height="130" rx="16" fill="#ffffff" stroke="#e5e1d8" stroke-width="1.5"/>
+  <text x="390" y="342" font-size="13" font-weight="700" fill="#ff895d">5 · ARTIFACT → APK</text>
+  <text x="390" y="370" font-size="16" font-weight="700" fill="#111">app-debug.apk (zip)</text>
+  <text x="390" y="394" font-size="12.5" fill="#555">“Cek APK” → /api/artifact</text>
+  <text x="390" y="414" font-size="12.5" fill="#555">unduh via /api/download</text>
+  <text x="390" y="432" font-size="12.5" fill="#555">(302 → blob storage)</text>
+ </g>
+ <line x1="688" y1="375" x2="594" y2="375" stroke="#1a1a1a" stroke-width="2" marker-end="url(#arr)"/>
+ <line x1="480" y1="310" x2="200" y2="254" stroke="#1a1a1a" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+
+ <!-- Bottom notes -->
+ <g>
+  <rect x="48" y="480" width="864" height="104" rx="16" fill="#fff5f0" stroke="#ffd8c9" stroke-width="1.5"/>
+  <text x="68" y="512" font-size="13" font-weight="700" fill="#ff895d">CI-NYA ADALAH FITUR PRODUKNYA</text>
+  <text x="68" y="540" font-size="13.5" fill="#333">Repo ini tidak meng-compile Android apa pun sendiri — GitHub Actions yang</text>
+  <text x="68" y="562" font-size="13.5" fill="#333">menjalankan Cordova. Bug yang diperbaiki v1.1.0: POST /api/build tidak pernah ada —</text>
+  <text x="68" y="582" font-size="13.5" font-weight="700" fill="#111">frontend memanggil endpoint yang menjawab 404, jadi tidak ada build yang bisa dimulai.</text>
+ </g>
+</svg>

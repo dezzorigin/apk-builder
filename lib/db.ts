@@ -6,6 +6,10 @@ export interface AppHistory {
  downloadUrl: string;
  createdAt: number;
  iconBase64?: string;
+ // Diisi saat build selesai di-dispatch tapi APK belum ada.
+ status?: 'building' | 'ready' | 'failed';
+ actionsUrl?: string;
+ runUrl?: string;
 }
 
 const DB_NAME = 'apk_builder_db';
@@ -85,6 +89,17 @@ export const getAppHistory = async (): Promise<AppHistory[]> => {
  } catch (e) {
  return [];
  }
+};
+
+export const deleteAppHistory = async (id: string) => {
+ const db = await initDB();
+ return new Promise((resolve, reject) => {
+ const tx = db.transaction(STORE_NAME, 'readwrite');
+ const store = tx.objectStore(STORE_NAME);
+ const request = store.delete(id);
+ request.onsuccess = () => resolve(request.result);
+ request.onerror = () => reject(request.error);
+ });
 };
 
 export const updateAppHistory = async (id: string, updates: Partial<AppHistory>) => {

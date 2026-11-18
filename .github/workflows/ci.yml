@@ -1,0 +1,198 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (static export + worker)
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Upload static output
+        uses: actions/upload-artifact@v4
+        with:
+          name: out
+          path: out/
+
+  worker-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Worker unit tests
+        run: npm test
+
+  # Gate keamanan dependensi produksi (pengganti `npm audit --omit=dev`).
+  # `npm audit --omit=dev` tetap melaporkan advisory yang hanya reachable
+  # lewat dev deps (bug npm yang diketahui), sehingga job audit lama gagal
+  # deterministik pada temuan HIGH dev-only padahal pohon produksi bersih.
+  # Sweep ini memakai sumber data yang sama (GitHub Advisory Database,
+  # dipakai Dependabot) tapi hanya memeriksa dependensi produksi, dan
+  # tetap FAIL kalau ada temuan high/critical di prod.
+  advisory-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Advisory sweep (production, high and above)
+        run: python3 scripts/advisory-sweep.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Template Cordova adalah bagian dari produk (di-push worker ke repo
+  # target) — workflow-nya harus YAML valid, config.xml harus XML valid,
+  # dan semua placeholder harus ada supaya tidak ada file mentah ter-push.
+  templates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Cordova templates
+        run: |
+          python3 - <<'EOF'
+          import json, sys, xml.etree.ElementTree as ET
+          import yaml
+
+          with open('public/cordova-template/build-apk.yml') as f:
+              wf = yaml.safe_load(f)
+          # YAML 1.1: kunci `on:` ter-parse jadi boolean True, bukan string 'on'.
+          on_key = wf.get('on', wf.get(True))
+          assert on_key is not None and 'workflow_dispatch' in on_key, 'workflow harus punya trigger workflow_dispatch'
+          steps = wf['jobs']['build']['steps']
+          assert any('cordova build android' in str(s.get('run', '')) for s in steps), 'workflow harus menjalankan cordova build'
+          assert any(s.get('uses', '').startswith('actions/upload-artifact@') for s in steps), 'workflow harus upload artifact APK'
+          print('build-apk.yml: YAML valid, dispatch + build + upload-artifact ada')
+
+          ET.parse('public/cordova-template/config.xml')
+          print('config.xml: XML valid')
+
+          with open('public/cordova-template/package.json') as f:
+              pkg = json.load(f)
+          assert 'android' in pkg['cordova']['platforms'], 'package.json harus mendeklarasikan platform android'
+          print('package.json: JSON valid, platform android ada')
+
+          expected = {
+              'config.xml': ('__APP_NAME__', '__PACKAGE_NAME__', '__TARGET_URL__'),
+              'package.json': ('__APP_NAME__', '__PACKAGE_NAME__', '__TARGET_URL__'),
+              'www/index.html': ('__APP_NAME__', '__TARGET_URL__'),
+          }
+          for name, placeholders in expected.items():
+              text = open(f'public/cordova-template/{name}').read()
+              for ph in placeholders:
+                  assert ph in text, f'{name} kehilangan placeholder {ph}'
+          print('placeholder lengkap di semua template')
+          EOF
+
+  # Smoke test end-to-end lokal: sajikan out/ + worker, lalu curl.
+  # Beda dari repo Next sebelumnya (lighthouse): di sini yang diuji
+  # adalah kontrak API worker — validasi 400, SSE, dan template statis.
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Download static output
+        uses: actions/download-artifact@v4
+        with:
+          name: out
+          path: out
+
+      - name: Static markers
+        run: node scripts/smoke.mjs
+
+      - name: Serve + live API checks
+        run: |
+          set -e
+          (PORT=8330 node scripts/serve-worker.mjs > /tmp/serve.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8330/ > /dev/null && break
+            sleep 1
+          done
+          code=$(curl -s -o /tmp/landing.html -w "%{http_code}" http://127.0.0.1:8330/)
+          echo "landing HTTP $code"; test "$code" = "200"
+          grep -qi "Ubah website jadi aplikasi Android" /tmp/landing.html
+          # Validasi input: body bukan JSON -> 400 + SSE error
+          code=$(curl -s -o /tmp/b400.txt -w "%{http_code}" -X POST http://127.0.0.1:8330/api/build \
+            -H "content-type: application/json" -d '{"appName":"","packageName":"salah"}')
+          echo "POST /api/build (invalid) HTTP $code: $(cat /tmp/b400.txt)"
+          test "$code" = "400"
+          grep -q "data: " /tmp/b400.txt
+          # /api/artifact tanpa parameter -> 400
+          code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8330/api/artifact?user=a")
+          echo "GET /api/artifact (kurang param) HTTP $code"; test "$code" = "400"
+          # /api/download tanpa parameter -> 400
+          code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8330/api/download?user=a")
+          echo "GET /api/download (kurang param) HTTP $code"; test "$code" = "400"
+          # Template Cordova tersaji sebagai file statis
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8330/cordova-template/build-apk.yml)
+          echo "GET /cordova-template/build-apk.yml HTTP $code"; test "$code" = "200"
+          # Halaman tak dikenal -> 404
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8330/halaman-tidak-ada)
+          echo "GET /halaman-tidak-ada HTTP $code"; test "$code" = "404"
+
+  # Live smoke test terhadap situs produksi (https://apk-builder.pages.dev).
+  # Read-only: TIDAK membuat build beneran (tidak memakai token GitHub
+  # siapa pun). Non-gating (continue-on-error): merahnya bisa berarti
+  # Pages sedang deploy ulang, bukan kode repo yang rusak.
+  live-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Landing live (HTTP 200 + marker)
+        run: |
+          set -e
+          code=$(curl -s -o /tmp/landing.html -w "%{http_code}" "https://apk-builder.pages.dev/")
+          echo "landing HTTP $code"
+          test "$code" = "200"
+          grep -qi "Ubah website jadi aplikasi Android" /tmp/landing.html
+
+      - name: API validation live (tanpa token pun harus 400)
+        run: |
+          set -e
+          code=$(curl -s -o /tmp/b400.txt -w "%{http_code}" -X POST "https://apk-builder.pages.dev/api/build" \
+            -H "content-type: application/json" -d '{"appName":"","packageName":"salah"}')
+          echo "POST /api/build (invalid) HTTP $code: $(cat /tmp/b400.txt)"
+          test "$code" = "400"
+          code=$(curl -s -o /tmp/a400.json -w "%{http_code}" "https://apk-builder.pages.dev/api/artifact?user=a")
+          echo "GET /api/artifact (kurang param) HTTP $code: $(cat /tmp/a400.json)"
+          test "$code" = "400"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "https://apk-builder.pages.dev/api/download?user=a")
+          echo "GET /api/download (kurang param) HTTP $code"
+          test "$code" = "400"
